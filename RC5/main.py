@@ -62,6 +62,8 @@ def generate_key():
         key_size = int(key_size_input.get())
         if key_size <= 0:
             raise ValueError("Размер ключа должен быть положительным числом.")
+        if key_size >= 256:
+            raise ValueError("Размер ключа должен быть меньше 256.")
         key = os.urandom(key_size)
         key_label.set(f"Ключ (hex): {key.hex()}")
         global encryption_key
@@ -94,7 +96,7 @@ def decrypt_message():
     try:
         cipher_hex = encrypted_input.get("1.0", tk.END).strip()
         if not cipher_hex:
-            raise ValueError("Введите шифрованный текст.")
+            raise ValueError("Введите зашифрованный текст.")
 
         cipher_bytes = bytes.fromhex(cipher_hex)
         key = encryption_key[:KEY_SIZE]
@@ -143,6 +145,8 @@ message_frame.pack(pady=5, fill=tk.X)
 ttk.Label(message_frame, text="Введите сообщение для шифрования:").pack(anchor=tk.W)
 message_input = tk.Text(message_frame, height=4, wrap=tk.WORD)
 message_input.pack(fill=tk.BOTH, padx=5, expand=True)
+ttk.Button(message_frame, text="Копировать", command=lambda: copy(message_input.get("1.0", tk.END).strip())).pack(side=tk.LEFT, padx=2)
+ttk.Button(message_frame, text="Вставить", command=lambda: paste(message_input)).pack(side=tk.LEFT, padx=2)
 
 ttk.Button(root, text="Зашифровать!!!1", command=encrypt_message).pack(pady=5)
 
