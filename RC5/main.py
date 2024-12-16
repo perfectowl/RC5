@@ -1,35 +1,37 @@
 import tkinter as tk
 from tkinter import ttk
-import struct
 import os
 
 # RC5 параметры по умолчанию
-WORD_SIZE = 32  # Размер слова
-BLOCK_SIZE = WORD_SIZE * 2  # Размер блока
+word_size = 32  # Размер слова
 DEFAULT_ROUNDS = 12  # Количество раундов
-KEY_SIZE = 16  # Размер ключа
+KEY_SIZE = 16  # Размер ключа по дефолту
 
-# Константы для RC5
+# Константы для расширения ключа
 P32 = 0xB7E15163
 Q32 = 0x9E3779B9
 
 
-def rotate_left(x, y, word_size=WORD_SIZE):
-    return ((x << y) & (2 ** word_size - 1)) | (x >> (word_size - y))
+def shift_left(x, y, size=word_size):
+    first = (x << y) & (2 ** size - 1)
+    second = x >> (size - y)
+    return first | second
 
 
-def rotate_right(x, y, word_size=WORD_SIZE):
-    return (x >> y) | ((x << (word_size - y)) & (2 ** word_size - 1))
+def shift_right(x, y, size=word_size):
+    first = x >> y
+    second = (x << (size - y)) & (2 ** size - 1)
+    return first | second
 
 
 def key_schedule(key, rounds=DEFAULT_ROUNDS):
-    L = list(struct.unpack(f"{len(key) // 4}I", key))
+    L = [int.from_bytes(key[i:i + 4], byteorder='little') for i in range(0, len(key), 4)]
     S = [(P32 + i * Q32) & 0xFFFFFFFF for i in range(2 * (rounds + 1))]
     A = B = i = j = 0
     v = 3 * max(len(L), len(S))
     for _ in range(v):
-        A = S[i] = rotate_left((S[i] + A + B) & 0xFFFFFFFF, 3)
-        B = L[j] = rotate_left((L[j] + A + B) & 0xFFFFFFFF, (A + B) & 31)
+        A = S[i] = shift_left((S[i] + A + B) & 0xFFFFFFFF, 3)
+        B = L[j] = shift_left((L[j] + A + B) & 0xFFFFFFFF, (A + B) & 31)
         i = (i + 1) % len(S)
         j = (j + 1) % len(L)
     return S
@@ -37,24 +39,28 @@ def key_schedule(key, rounds=DEFAULT_ROUNDS):
 
 # Шифрование RC5
 def rc5_encrypt(block, S, rounds=DEFAULT_ROUNDS):
-    A, B = struct.unpack("2I", block)
+    A = int.from_bytes(block[:4], byteorder='little')
+    B = int.from_bytes(block[4:], byteorder='little')
     A = (A + S[0]) & 0xFFFFFFFF
     B = (B + S[1]) & 0xFFFFFFFF
     for i in range(1, rounds + 1):
-        A = (rotate_left(A ^ B, B & 31) + S[2 * i]) & 0xFFFFFFFF
-        B = (rotate_left(B ^ A, A & 31) + S[2 * i + 1]) & 0xFFFFFFFF
-    return struct.pack("2I", A, B)
+        A = (shift_left(A ^ B, B & 32, word_size) + S[2 * i]) & 0xFFFFFFFF
+        B = (shift_left(B ^ A, A & 32, word_size) + S[2 * i + 1]) & 0xFFFFFFFF
+    block = A.to_bytes(4, byteorder='little') + B.to_bytes(4, byteorder='little')
+    return block
 
 
 # Дешифрование RC5
 def rc5_decrypt(block, S, rounds=DEFAULT_ROUNDS):
-    A, B = struct.unpack("2I", block)
+    A = int.from_bytes(block[:4], byteorder='little')
+    B = int.from_bytes(block[4:], byteorder='little')
     for i in range(rounds, 0, -1):
-        B = rotate_right((B - S[2 * i + 1]) & 0xFFFFFFFF, A & 31) ^ A
-        A = rotate_right((A - S[2 * i]) & 0xFFFFFFFF, B & 31) ^ B
+        B = shift_right((B - S[2 * i + 1]) & 0xFFFFFFFF, A & 32, word_size) ^ A
+        A = shift_right((A - S[2 * i]) & 0xFFFFFFFF, B & 32, word_size) ^ B
     B = (B - S[1]) & 0xFFFFFFFF
     A = (A - S[0]) & 0xFFFFFFFF
-    return struct.pack("2I", A, B)
+    block = A.to_bytes(4, byteorder='little') + B.to_bytes(4, byteorder='little')
+    return block
 
 
 def generate_key():
@@ -124,8 +130,8 @@ def paste(entry):
 
 # Инициализация окна
 root = tk.Tk()
-root.title("RC5 Шифрование")
-root.geometry("600x700")
+root.title("RC5 Шифрование (мне охота плакать уже как я завтра на пары проснусь)")
+root.geometry("600x800")
 
 # Параметры
 params_frame = ttk.Frame(root)
