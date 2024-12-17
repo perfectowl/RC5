@@ -41,11 +41,14 @@ def key_schedule(key, rounds=DEFAULT_ROUNDS):
 def rc5_encrypt(block, S, rounds=DEFAULT_ROUNDS):
     A = int.from_bytes(block[:4], byteorder='little')
     B = int.from_bytes(block[4:], byteorder='little')
-    A = (A + S[0]) & 0xFFFFFFFF
-    B = (B + S[1]) & 0xFFFFFFFF
+    l = word_size
+    # первое (но последнее) преобразование с S[2i]
+    A = (A + S[0]) % (2**l)
+    B = (B + S[1]) % (2**l)
+    # Основные раунды c S2i+1
     for i in range(1, rounds + 1):
-        A = (shift_left(A ^ B, B & 32, word_size) + S[2 * i]) & 0xFFFFFFFF
-        B = (shift_left(B ^ A, A & 32, word_size) + S[2 * i + 1]) & 0xFFFFFFFF
+        A = (shift_left((A ^ B), B % l, l) + S[2 * i]) % (2**l)
+        B = (shift_left((B ^ A), A % l, l) + S[2 * i + 1]) % (2**l)
     block = A.to_bytes(4, byteorder='little') + B.to_bytes(4, byteorder='little')
     return block
 
@@ -54,11 +57,14 @@ def rc5_encrypt(block, S, rounds=DEFAULT_ROUNDS):
 def rc5_decrypt(block, S, rounds=DEFAULT_ROUNDS):
     A = int.from_bytes(block[:4], byteorder='little')
     B = int.from_bytes(block[4:], byteorder='little')
+    l = word_size
+    # Основные раунды (в обратном порядке) c S[2i+1]
     for i in range(rounds, 0, -1):
-        B = shift_right((B - S[2 * i + 1]) & 0xFFFFFFFF, A & 32, word_size) ^ A
-        A = shift_right((A - S[2 * i]) & 0xFFFFFFFF, B & 32, word_size) ^ B
-    B = (B - S[1]) & 0xFFFFFFFF
-    A = (A - S[0]) & 0xFFFFFFFF
+        B = shift_right((B - S[2 * i + 1]) % (2**l), A % l, l) ^ A
+        A = shift_right((A - S[2 * i]) % (2**l), B % l, l) ^ B
+    #первое (но последнее) преобразование с S2i
+    B = (B - S[1]) % (2 ** l)
+    A = (A - S[0]) % (2 ** l)
     block = A.to_bytes(4, byteorder='little') + B.to_bytes(4, byteorder='little')
     return block
 
